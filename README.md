@@ -13,7 +13,7 @@ This project provides a scalable, transparent infrastructure for educational ass
 
 ## 📂 Repository Contents
 
-### 🧩 `survey revised/app.R`
+### 🧩 Shinny App Survey:`survey revised/app.R`
 
 **Dynamic Scoring App (R + Shiny)**  
 A secure, user-friendly interface for scoring student work with embedded prompts, rubrics, and real-time validation. Built to streamline rater workflow and ensure scoring accuracy.
@@ -32,7 +32,7 @@ A secure, user-friendly interface for scoring student work with embedded prompts
 
 ---
 
-### 📈 `reliability.Rmd`
+### 📈 Reliability Script: `reliability.Rmd`
 
 **Reliability Analysis Script (R Markdown)**  
 Calculates inter-rater agreement using exact match, one-off agreement, and Cohen’s Kappa. Built to compare human-human and AI-human ratings, with visualization support.
@@ -45,7 +45,7 @@ Calculates inter-rater agreement using exact match, one-off agreement, and Cohen
 
 ---
 
-### 🧠 `survey revised/work_flow_updated.Rmd`
+### 🧠 LLM Training and Workflow: `survey revised/work_flow_updated.Rmd`
 
 **AI-Assisted Artifact Scoring Pipeline**  
 An LLM-powered system using GPT-4.0 mini (via CMU’s secure LiteLLM deployment) for rubric-aligned artifact evaluation. Includes prompt generation, response tracking, and audit-ready output.
