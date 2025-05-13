@@ -12,10 +12,10 @@ This project provides a scalable and transparent infrastructure for educational 
 - **Dynamic Scoring App (R + Shiny)**  
   A secure, user-friendly interface for raters to score student work using dropdown menus, embedded rubrics, and real-time validation. Built for speed, consistency, and privacy-compliance.
   ---
-*Before (left) and after (right) workflow shinny app build* 
+***Before (left) and after (right) workflow shinny app build***
   <img src="figures/rating_app.png" alt="Shiny App Interface solution" width="450">
   ---
-*Example of workflow for user* 
+***Example of workflow for user*** 
   <img src="figures/rubric_scoring.png" alt="Shiny App Interface" width="450">
 
 ---
@@ -23,8 +23,8 @@ This project provides a scalable and transparent infrastructure for educational 
 ### 📈 `reliability.Rmd`
 - **Reliability Analysis Script (R Markdown)**  
   Quantifies inter-rater agreement using metrics like exact match, one-off tolerance, and Cohen’s Kappa. Designed to compare both human-human and AI-human scores across multiple rubric components.
-
-*reliability of two human raters over time* 
+  ---
+***reliability of two human raters over time* **
   <img src="figures/overal_reliability.png" alt="Reliability Output" width="400">
 
 ---
@@ -32,8 +32,8 @@ This project provides a scalable and transparent infrastructure for educational 
 ### 🧠 `survey revised/work_flow_updated.Rmd`
 - **AI-Assisted Artifact Scoring Pipeline**  
   An end-to-end system using GPT-4.0 mini (via CMU’s LiteLLM) to score artifacts with rubric-aligned prompts. Includes preprocessing, prompt engineering, and structured output for downstream analysis.
-
-*reliability of LLM-LLM and LLM-Human rating comparison* 
+  ---
+***reliability of LLM-LLM and LLM-Human rating comparison* **
   <img src="figures/AI vs AI and Human vs AI Agreement by Rubric Component.png" alt="AI Scoring Workflow" width="500">
 
 ---
