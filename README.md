@@ -29,7 +29,7 @@ This project provides a scalable and transparent infrastructure for educational 
 - **AI-Assisted Artifact Scoring Pipeline**  
   An end-to-end system using GPT-4.0 mini (via CMU’s LiteLLM) to score artifacts with rubric-aligned prompts. Includes preprocessing, prompt engineering, and structured output for downstream analysis.
 
-  <img src="figures/AI vs AI and Human vs AI Agreement by Rubric Component" alt="AI Scoring Workflow" width="500">
+  <img src="figures/AI vs AI and Human vs AI Agreement by Rubric Component.png" alt="AI Scoring Workflow" width="500">
 
 ---
 
