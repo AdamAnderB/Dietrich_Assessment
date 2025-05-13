@@ -77,7 +77,7 @@ An LLM-powered system using GPT-4.0 mini (via CMU’s secure LiteLLM deployment)
 ## 🛠️ Getting Started
 
 1. Clone this repository.
-2. Launch the Shiny app via `app.R` for human scoring.
+2. Launch the Shiny app via `app.R` for human scoring (you will need the datascture to be as stored on BOX organized by Chelsea R. Leverett-Ptak, M.S.|Core Education Project Coordinator | Dietrich Gen Ed Coordinator).
 3. Run `reliability.Rmd` to evaluate consistency across raters or compare AI to human scores.
 4. Use `work_flow_updated.Rmd` to score artifacts using GPT-4.0 mini via CMU’s LiteLLM proxy.
 
