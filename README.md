@@ -1,52 +1,90 @@
-# Building Better Assessment: Scalable Tools for Human and AI Scoring
+# 🧠 Building Better Assessment: Scalable Tools for Human and AI Scoring
 
-## *Reference:*
-Bramlett, A. A. (2025). From Bottlenecks to Breakthroughs: Building Secure, Scalable, and Data-Driven Assessment Systems. *Graduate Assessment Fellowship Report, Dietrich College, CMU*.
+## 📚 *Reference:*
+**Bramlett, A. A.** (2025). *From Bottlenecks to Breakthroughs: Building Secure, Scalable, and Data-Driven Assessment Systems.* Graduate Assessment Fellowship Report, Dietrich College, CMU.
 
-## Overview
-This project provides a scalable and transparent infrastructure for educational assessment, developed during the Graduate Assessment Fellowship at Carnegie Mellon University. It features a secure scoring app, a robust reliability framework, and an AI-assisted workflow for evaluating student artifacts.
+---
 
-## Repository Contents
+## 📌 Overview
+
+This project provides a scalable, transparent infrastructure for educational assessment, developed during the Graduate Assessment Fellowship at Carnegie Mellon University. It features a secure scoring app, a robust reliability framework, and an AI-assisted workflow for evaluating student artifacts. All tools are designed to support both human and AI raters, with attention to reproducibility, FERPA compliance, and modular design.
+
+---
+
+## 📂 Repository Contents
 
 ### 🧩 `survey revised/app.R`
-- **Dynamic Scoring App (R + Shiny)**  
-  A secure, user-friendly interface for raters to score student work using dropdown menus, embedded rubrics, and real-time validation. Built for speed, consistency, and privacy-compliance.
-  ---
-***Before (left) and after (right) workflow shinny app build***
-  <img src="figures/rating_app.png" alt="Shiny App Interface solution" width="450">
-  ---
-***Example of workflow for user*** 
-  <img src="figures/rubric_scoring.png" alt="Shiny App Interface" width="450">
+
+**Dynamic Scoring App (R + Shiny)**  
+A secure, user-friendly interface for scoring student work with embedded prompts, rubrics, and real-time validation. Built to streamline rater workflow and ensure scoring accuracy.
+
+---
+
+**Before (left) and after (right): manual vs. app-based rating workflow**
+
+<img src="figures/rating_app.png" alt="Shiny App Interface" width="450">
+
+---
+
+**Example of the interactive scoring interface**
+
+<img src="figures/rubric_scoring.png" alt="Rubric Scoring Interface" width="450">
 
 ---
 
 ### 📈 `reliability.Rmd`
-- **Reliability Analysis Script (R Markdown)**  
-  Quantifies inter-rater agreement using metrics like exact match, one-off tolerance, and Cohen’s Kappa. Designed to compare both human-human and AI-human scores across multiple rubric components.
-  ---
-***reliability of two human raters over time* **
-  <img src="figures/overal_reliability.png" alt="Reliability Output" width="400">
+
+**Reliability Analysis Script (R Markdown)**  
+Calculates inter-rater agreement using exact match, one-off agreement, and Cohen’s Kappa. Built to compare human-human and AI-human ratings, with visualization support.
+
+---
+
+**Human–Human reliability over time**
+
+<img src="figures/overal_reliability.png" alt="Rater Agreement Over Time" width="400">
 
 ---
 
 ### 🧠 `survey revised/work_flow_updated.Rmd`
-- **AI-Assisted Artifact Scoring Pipeline**  
-  An end-to-end system using GPT-4.0 mini (via CMU’s LiteLLM) to score artifacts with rubric-aligned prompts. Includes preprocessing, prompt engineering, and structured output for downstream analysis.
-  ---
-***reliability of LLM-LLM and LLM-Human rating comparison* **
-  <img src="figures/AI vs AI and Human vs AI Agreement by Rubric Component.png" alt="AI Scoring Workflow" width="500">
+
+**AI-Assisted Artifact Scoring Pipeline**  
+An LLM-powered system using GPT-4.0 mini (via CMU’s secure LiteLLM deployment) for rubric-aligned artifact evaluation. Includes prompt generation, response tracking, and audit-ready output.
 
 ---
 
-## Key Features
+**LLM–LLM and LLM–Human scoring comparison**
+
+<img src="figures/AI vs AI and Human vs AI Agreement by Rubric Component.png" alt="AI vs Human Agreement" width="500">
+
+---
+
+## 🌟 Key Features
+
 - 🔐 **FERPA-Compliant Infrastructure**  
-  All data handled securely within CMU systems.
+  All scoring processes are secure and internal to CMU systems.
 
 - ⚖️ **Human & AI Calibration**  
-  Multi-layer rubric reliability and cross-rater consistency checks.
+  Multi-level reliability checks and detailed rubric diagnostics.
 
 - 🤖 **LLM Integration**  
-  GPT-4.0 mini used for scoring under the same constraints as human raters.
+  GPT-4.0 mini deployed as a secure, scalable rater within the assessment system.
 
-- 📊 **Tidy Data Outputs**  
-  Designed for reproducibility and scalability in R.
+- 📊 **Tidy, Structured Output**  
+  Data formatted for immediate aggregation, analysis, and visualization in R.
+
+---
+
+## 🛠️ Getting Started
+
+1. Clone this repository.
+2. Launch the Shiny app via `app.R` for human scoring.
+3. Run `reliability.Rmd` to evaluate consistency across raters or compare AI to human scores.
+4. Use `work_flow_updated.Rmd` to score artifacts using GPT-4.0 mini via CMU’s LiteLLM proxy.
+
+---
+
+## 📣 Citation
+
+Please cite the original report if this toolkit assists your research or program development:
+
+> Bramlett, A. A. (2025). *From Bottlenecks to Breakthroughs: Building Secure, Scalable, and Data-Driven Assessment Systems.* Graduate Assessment Fellowship Report, Dietrich College, CMU.
