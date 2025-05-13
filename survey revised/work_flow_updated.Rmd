@@ -1,0 +1,874 @@
+---
+title: "work_flow"
+author: "Adam A. Bramlett"
+date: "2024-10-01"
+output: html_document
+---
+
+Step 1: Understand the Dataset Structure
+	•	Identify what data fields are available for each artifact (e.g., student submissions, assignment descriptions, rubrics).
+	•	Define how each artifact is categorized (e.g., subject, skill level, scoring criteria).
+	•	Check if there are pre-rated samples in the dataset for fine-tuning or prompt engineering.
+
+Step 2: Preprocess the Data
+	•	Standardize formats: Ensure all artifacts have a consistent structure.
+	•	Clean the text data: Remove unnecessary formatting, typos, and redundant metadata.
+	•	Extract key features: Identify the main components of the artifact that are relevant for assessment (e.g., thesis statements, argument quality, code logic).
+	•	Tokenize large artifacts: If the text is too long, decide how to chunk it for API processing.
+
+Step 3: Define the Assessment Criteria
+	•	Align with rubrics: Extract criteria from grading rubrics or historical data.
+	•	Determine scoring categories: Decide whether the system will output numerical scores, qualitative feedback, or both.
+	•	Choose AI-generated feedback type: Does the API provide a summary, a justification for scores, suggestions for improvement, or all of the above?
+
+Step 4: Construct the Prompts for the API
+	•	General prompt structure:
+	•	Dynamic prompt generation: Create a function that dynamically inserts rubric criteria and the artifact’s text into the prompt.
+	•	Few-shot learning (if needed): Include examples of high and low-quality responses if you have them.
+
+Step 5: Call the API
+	•	Choose the right model: Select a GPT-4 Turbo or fine-tuned model that balances cost and performance.
+	•	Send requests to the API: Ensure structured input with metadata like:
+	•	artifact_id
+	•	subject
+	•	rubric_criteria
+	•	student_response
+	•	Handle API responses: Extract scores and feedback from the response.
+
+Step 6: Store and Organize API Responses
+	•	Save outputs in a structured format (e.g., CSV, JSON, or a database).
+	•	Link responses to artifacts using unique IDs.
+	•	Log API calls to track performance and debug issues.
+
+Step 7: Post-Processing & Quality Control
+	•	Check consistency: Compare API-generated scores with human ratings.
+	•	Detect bias or errors: Run qualitative checks on AI feedback.
+	•	Adjust prompts if outputs are inconsistent or unreliable.
+
+Step 8: Deploy & Automate the Workflow
+	•	Batch process artifacts by integrating API calls into an R script or Shiny app.
+	•	Enable real-time scoring for student submissions.
+	•	Monitor performance and update prompts based on model behavior.
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(ggplot2)
+library(readxl)
+library(googlesheets4)
+library(blastula)
+library(keyring)
+library(dplyr)
+library(tidyr)
+library(purrr)
+```
+
+this is specifically for google integration
+```{r}
+#remove.packages("googlesheets4")  # Remove any existing installation
+#install.packages("googlesheets4")  # Reinstall the package
+#library(googlesheets4) 
+#list.files()
+#gs4_auth(
+#  path = "gaf-dataset-057d32fbee1b.json"
+#)
+#sheet_id <- "1qvX3LVCaC6oeNom2HwdeitoHpk0CG5EP4ZLBEuXEzLI"
+
+
+#test_data <- data.frame(
+#  Name = c("Alice", "Bob", "Charlie"),
+#  Score = c(88, 90, 95)
+#)
+
+# Attempt to append data to the Google Sheet
+#sheet_append(sheet_id, data = test_data, sheet = "Sheet1")
+#packageVersion("googlesheets4")
+```
+Step 1: Understand the Dataset Structure
+```{r}
+list.files("www/")
+list.files("www/Artifacts for Coding")
+list_o_areas <- list.dirs("www/Artifacts for Coding", full.names = FALSE, recursive = FALSE)
+rubric_path <- list.files("www/Artifacts for Coding", pattern = "Rubric Compilation.xlsx", full.names = TRUE)
+list_o_areas
+```
+
+Step 2: Preprocess the Data
+#creating the csvs from the rubrics 
+```{r}
+
+# Locate the file
+rubric_path <- list.files("www/Artifacts for Coding", pattern = "Rubric Compilation.xlsx", full.names = TRUE)
+
+# Get all sheet names
+sheet_names <- excel_sheets(rubric_path)
+
+# Read each sheet into a named list of data frames
+rubric <- lapply(sheet_names, function(sheet) {
+  read_excel(rubric_path, sheet = sheet)
+})
+
+# Name each element in the list with its sheet name
+names(rubric) <- sheet_names
+
+# Define the path to the rubrics folder in the www directory
+rubrics_folder <- "www/rubrics"
+
+# Create the rubrics folder in www if it doesn’t exist
+if (!dir.exists(rubrics_folder)) {
+  dir.create(rubrics_folder)
+}
+
+# Save each sheet as a CSV in the rubrics folder
+lapply(names(rubric), function(sheet_name) {
+  write.csv(rubric[[sheet_name]], file = file.path(rubrics_folder, paste0(sheet_name, ".csv")), row.names = FALSE)
+})
+```
+Step 3: Define the Assessment Criteria
+```{r}
+# Define the base directory
+base_dir <- "www/Artifacts for Coding"
+
+# Initialize an empty data frame to store the path breakdown
+folder_data <- data.frame(Areas = character(), Semesters = character(), Course = character(), 
+                          Assignments = character(), Artifact = character(), FilePath = character(), stringsAsFactors = FALSE)
+
+# Function to recursively navigate through directories and collect path information
+get_folder_structure <- function(current_dir, areas = NA, semesters = NA, course = NA, assignments = NA) {
+  # List all files and directories in the current directory
+  items <- list.files(current_dir, full.names = TRUE)
+  
+  # Separate directories and files
+  directories <- items[file.info(items)$isdir]
+  files <- items[!file.info(items)$isdir]
+  
+  # Process directories (folders)
+  for (dir in directories) {
+    # Extract the folder name
+    folder_name <- basename(dir)
+    
+    # Navigate through different levels based on the directory structure
+    if (is.na(areas)) {
+      get_folder_structure(dir, areas = folder_name)
+    } else if (is.na(semesters)) {
+      get_folder_structure(dir, areas = areas, semesters = folder_name)
+    } else if (is.na(course)) {
+      get_folder_structure(dir, areas = areas, semesters = semesters, course = folder_name)
+    } else if (is.na(assignments)) {
+      get_folder_structure(dir, areas = areas, semesters = semesters, course = course, assignments = folder_name)
+    }
+  }
+  
+  # Process files (assignments) at the deepest level
+  if (!is.na(assignments)) {
+    for (file in files) {
+      file_name <- basename(file)
+      file_path <- file  # Capture the full file path
+      folder_data <<- rbind(folder_data, data.frame(areas = areas, semesters = semesters, course = course, 
+                                                    assignments = assignments, artifact = file_name, 
+                                                    artifact_path = file_path, stringsAsFactors = FALSE))
+    }
+  }
+}
+
+# Run the function starting from the base directory
+get_folder_structure(base_dir)
+
+# View the resulting data frame
+folder_data
+
+View(folder_data)
+```
+
+```{r}
+folder_data_artifacts <- folder_data %>% 
+  filter(!grepl("instructions", artifact, ignore.case = TRUE))
+
+# Filter rows where 'Artifact' contains "instructions"
+folder_data_instructions <- folder_data %>% 
+  filter(grepl("instructions", artifact, ignore.case = TRUE))%>%
+  rename(Instructions = artifact, instructions_path = artifact_path)
+
+
+View(folder_data_instructions)
+folder_data_cleaned<-folder_data_artifacts%>%
+  left_join(folder_data_instructions)
+
+
+```
+#rubric clean up
+```{r}
+library(tidyverse)
+library(janitor)
+# List all CSV files in the folder
+files <- list.files("www/rubrics", pattern = "\\.csv$", full.names = TRUE)
+rubrics <- map(files, read_csv)
+names(rubrics) <- basename(files) %>% str_remove("\\.csv$")
+
+keep_names <- c("Argumentation or Critique and C", "Collaboration",             
+                "Communication", "Complex Problem Solving",         
+                "Computational Thinking", "Contexual Thinking",              
+                "Disciplinary Research or Creati", 
+                "Diversity, Equity, & Inclusion",  
+                "Ethical Reasoning", "Health & Wellbeing",              
+                "Intercultural and Global Inquir", 
+                "Interdisciplinary Perspectives",  
+                "Scientific Inquiry", "Self-Directed Learning")
+
+# Keep only the rubrics that match the list of names
+rubrics <- rubrics[names(rubrics) %in% keep_names]
+rubrics <- subset(rubrics, sapply(rubrics, nrow) > 0)
+
+rubrics$`Argumentation or Critique and C`
+rubrics$Collaboration
+rubrics$Communication
+#use IGI as the foundation- others can be converted to that later.
+
+
+
+#goals-
+##feasability
+##reliability
+```
+
+#above sorts all rubrics and all artifacts (rubrics for non-IGI still need standardization)
+
+#below just running for IGI seperation in next block continues below
+```{r}
+
+IGI_artifacts<-folder_data_cleaned%>%
+  filter(areas=="Intercultural and Global Inquiry")
+
+rubric_dict_IGI <- rubrics$`Intercultural and Global Inquir` %>%
+  filter(!is.na(LO)) %>%
+  mutate(Rubric_Row_Description = `Rubric Row Description`) %>%
+  group_by(LO) %>%
+  mutate(sub_learning_outcome = row_number())%>%
+  ungroup() %>%
+  rename(learning_outcome = LO) %>%
+  select(learning_outcome, sub_learning_outcome, Rubric_Row_Description, `N/A`, `0.0`, `1.0`, `2.0`, `3.0`, `4.0`) %>%
+  pivot_longer(cols = c(`N/A`, `0.0`, `1.0`, `2.0`, `3.0`, `4.0`), 
+               names_to = "level", values_to = "criteria")
+
+
+
+IGI_full <- crossing(IGI_artifacts,rubric_dict_IGI)%>%
+  mutate(learning_outcome_numerated=paste(learning_outcome,sub_learning_outcome,sep="."))%>%
+  left_join(folder_data_instructions)
+#code for future removal based on alignment on scoring (Chelsea)
+#%>%left_join(Chelsea_alignment_scoreing)
+#%>%filter(do_scoring==1)
+
+View(IGI_full)
+View(IGI_full)
+length(unique(IGI_full$artifact))
+```
+
+
+Step 4: Construct the Prompts for the API
+-reasoning first
+-single digit scoring
+```{r}
+library(readr)
+library(pdftools)
+library(tidyverse)
+library(glue)
+library(tidyverse)
+library(pdftools)
+library(glue)
+
+# Function to safely read text from a PDF file
+read_pdf_content <- function(file_path) {
+  if (!file.exists(file_path) || tools::file_ext(file_path) != "pdf") {
+    return("File not found or not a valid PDF.")
+  }
+  
+  tryCatch({
+    text <- pdf_text(file_path)  # Extract text from the PDF
+    paste(text, collapse = "\n")  # Combine all pages into a single string
+  }, error = function(e) {
+    return("Error reading PDF.")  # Return a safe error message instead of stopping
+  })
+}
+```
+
+```{r}
+generate_prompts_nested <- function(df) {
+  
+  # Step 1: Collapse rubric levels
+  rubric_summaries <- df %>%
+    mutate(level = as.character(level)) %>%
+    arrange(learning_outcome_numerated, level) %>%
+    group_by(
+      areas, semesters, course, assignments, artifact, artifact_path,
+      learning_outcome_numerated, Rubric_Row_Description
+    ) %>%
+    summarise(
+      rubric_text = paste0("**Level ", level, "**: ", criteria, collapse = "\n\n"),
+      .groups = "drop"
+    )
+  
+  # Step 2: Join rubric summaries
+  df_combined <- df %>%
+    left_join(rubric_summaries, by = c(
+      "areas", "semesters", "course", "assignments", "artifact", "artifact_path",
+      "learning_outcome_numerated", "Rubric_Row_Description"
+    )) %>%
+    distinct(areas, semesters, course, assignments, artifact, artifact_path, Instructions, instructions_path,
+             learning_outcome_numerated, Rubric_Row_Description, rubric_text)
+
+  # Step 3: Read PDFs
+  df_combined <- df_combined %>%
+    mutate(
+      content = map_chr(artifact_path, read_pdf_content),
+      instructions_text = map_chr(instructions_path, read_pdf_content)
+    )
+
+  # Step 4: Generate prompts
+  df_combined <- df_combined %>%
+    mutate(
+      prompts = pmap(list(assignments, instructions_text, content, Rubric_Row_Description, rubric_text), 
+                     function(assignments, instructions_text, content, Rubric_Row_Description, rubric_text) {
+        list(
+          step_1= glue("Let's evaluate **{assignments}** in steps: instructions, artifact, rubric, and final score. Ready?"),
+          
+          step_2 = if (!is.na(instructions_text) && instructions_text != "File not found or not a valid PDF." && instructions_text != "Error reading PDF.") {
+            glue("### **Instructions**\n{instructions_text}\nConfirm when ready.")
+          } else {
+            glue("### **No Instructions Provided**\nProceeding to artifact review.")
+          },
+          
+          step_3 = glue("### **Student Submission**\n{content}\nGive a thoughtful response. I'll provide a rubric after you have given a response"),
+          
+          step_4 = glue("
+### **Rubric**
+
+We are evaluating this outcome:  
+**{Rubric_Row_Description}**
+
+Below are descriptions for each score level from 0 to 4.  
+Please review the rubric and **reflect on your earlier response**.  
+You may revise or add justification to align with the scoring criteria.
+
+{rubric_text}
+          "),
+          
+          step_5 = glue("### **Final Score**\nAssign a score (0–4) based on the rubric. Justify your choice.")
+        )
+      })
+    )
+
+  # Step 5: Nest
+  df_nested <- df_combined %>%
+    select(areas, course, semesters, assignments, artifact, prompts) %>%
+    group_by(areas, course, semesters, assignments) %>%
+    summarise(artifacts = list(set_names(prompts, artifact)), .groups = "drop") %>%
+    group_by(areas, course, semesters) %>%
+    summarise(assignments = list(set_names(artifacts, assignments)), .groups = "drop") %>%
+    group_by(areas, course) %>%
+    summarise(semesters = list(set_names(assignments, semesters)), .groups = "drop") %>%
+    group_by(areas) %>%
+    summarise(courses = list(set_names(semesters, course)), .groups = "drop") %>%
+    deframe()
+  
+  return(df_nested)
+}
+```
+
+```{r}
+prompts_nested <- generate_prompts_nested(IGI_full)
+```
+
+```{r}
+# Print structure
+str(prompts_nested, max.level = 4)
+prompts_nested$`Intercultural and Global Inquiry`$`82-283`$`Fall 2021`$`Assignment 1`$`82283_1_F21_DC240141.pdf`$step_1
+
+prompts_nested$`Intercultural and Global Inquiry`$`82-283`$`Fall 2021`$`Assignment 1`$`82283_1_F21_DC240141.pdf`$step_2
+
+#prompts_nested$`Intercultural and Global Inquiry`$`79-145`$`Fall 2021`$`Assignment 1`$`79145_1_F21_DC112086.pdf`$step_2
+
+prompts_nested$`Intercultural and Global Inquiry`$`82-283`$`Fall 2021`$`Assignment 1`$`82283_1_F21_DC240141.pdf`$step_3
+
+prompts_nested$`Intercultural and Global Inquiry`$`82-283`$`Fall 2021`$`Assignment 1`$`82283_1_F21_DC240141.pdf`$step_4
+
+prompts_nested$`Intercultural and Global Inquiry`$`82-283`$`Fall 2021`$`Assignment 1`$`82283_1_F21_DC240141.pdf`$step_5
+
+#make it functional
+```
+
+
+```{r}
+run_chatgpt_on_assignment <- function(prompts_nested, area, course, semester, assignment, artifact, api_key, model = "gpt-4", test = FALSE) {
+  
+  # Access all steps
+  steps <- prompts_nested[[area]][[course]][[semester]][[assignment]][[artifact]]
+  
+  # Create an empty results dataframe
+  results <- tibble::tibble(
+    area = character(),
+    course = character(),
+    semester = character(),
+    assignment = character(),
+    artifact = character(),
+    step = character(),
+    prompt = character(),
+    response = character()
+  )
+  
+  for (step_name in names(steps)) {
+    prompt_text <- steps[[step_name]]
+    
+    # Try API call or mock
+    response_text <- tryCatch({
+      if (test) {
+        "🧪 MOCK RESPONSE"
+      } else {
+        chatgpt_api_call(prompt = prompt_text, api_key = api_key, model = model)
+      }
+    }, error = function(e) {
+      "null, chatgpt out of tokens"
+    })
+    
+    # Append row to results dataframe
+    results <- dplyr::bind_rows(results, tibble::tibble(
+      area = area,
+      course = course,
+      semester = semester,
+      assignment = assignment,
+      artifact = artifact,
+      step = step_name,
+      prompt = prompt_text,
+      response = response_text
+    ))
+  }
+  
+  return(results)
+}
+
+
+run_chatgpt_on_assignment_descriptive_then_score <- function(
+  prompts_nested, 
+  area, course, semester, assignment, artifact,
+  api_key, model = "gpt-4o-mini-2024-07-18", test = FALSE
+) {
+  
+  # Access prompt components
+  steps <- prompts_nested[[area]][[course]][[semester]][[assignment]][[artifact]]
+  
+  # Create results holder
+  results <- tibble::tibble(
+    area = character(),
+    course = character(),
+    semester = character(),
+    assignment = character(),
+    artifact = character(),
+    step = character(),
+    prompt = character(),
+    response = character()
+  )
+  
+  # ----- STEP 1: Create combined prompt for descriptive feedback -----
+  descriptive_prompt <- paste(
+    steps$step_2,  # Instructions
+    steps$step_3,  # Student submission
+    steps$step_4,  # Rubric
+    sep = "\n\n"
+  )
+  
+  # Send descriptive feedback request
+  descriptive_response <- tryCatch({
+    if (test) {
+      "🧪 MOCK: This submission shows partial awareness of cultural context but lacks depth in reflection..."
+    } else {
+      chatgpt_api_call(prompt = descriptive_prompt, api_key = api_key, model = model)
+    }
+  }, error = function(e) {
+    "⚠️ GPT error during descriptive feedback."
+  })
+
+  # Record descriptive step
+  results <- bind_rows(results, tibble::tibble(
+    area = area,
+    course = course,
+    semester = semester,
+    assignment = assignment,
+    artifact = artifact,
+    step = "descriptive_feedback",
+    prompt = descriptive_prompt,
+    response = descriptive_response
+  ))
+
+  # ----- STEP 2: Score using GPT's own descriptive feedback + rubric -----
+  scoring_prompt <- glue::glue("
+You previously provided descriptive feedback based on the rubric below.  
+Now, please assign a final score from 0 to 4 **based on that feedback**.
+
+### Rubric:
+{steps$step_4}
+
+### Your Descriptive Feedback:
+{descriptive_response}
+
+Return only a single digit (0–4) as your final answer.
+")
+
+  scoring_response <- tryCatch({
+    if (test) {
+      "3"
+    } else {
+      chatgpt_api_call(prompt = scoring_prompt, api_key = api_key, model = model)
+    }
+  }, error = function(e) {
+    "⚠️ GPT error during scoring."
+  })
+
+  # Record scoring step
+  results <- bind_rows(results, tibble::tibble(
+    area = area,
+    course = course,
+    semester = semester,
+    assignment = assignment,
+    artifact = artifact,
+    step = "score_decision",
+    prompt = scoring_prompt,
+    response = scoring_response
+  ))
+
+  return(results)
+}
+
+```
+
+Step 5: Call the API
+```{r}
+run_all_assignments <- function(prompts_nested, api_key, model = "gpt-4", 
+                                area = NULL, course = NULL, semester = NULL, 
+                                assignment = NULL, artifact = NULL, test = FALSE) {
+  
+  all_results <- tibble::tibble(
+    area = character(),
+    course = character(),
+    semester = character(),
+    assignment = character(),
+    artifact = character(),
+    step = character(),
+    prompt = character(),
+    response = character()
+  )
+  
+  areas <- if (!is.null(area)) area else names(prompts_nested)
+  
+  for (a in areas) {
+    courses <- if (!is.null(course)) course else names(prompts_nested[[a]])
+    
+    for (c in courses) {
+      semesters <- if (!is.null(semester)) semester else names(prompts_nested[[a]][[c]])
+      
+      for (s in semesters) {
+        assignments <- if (!is.null(assignment)) assignment else names(prompts_nested[[a]][[c]][[s]])
+        
+        for (asmt in assignments) {
+          artifacts <- if (!is.null(artifact)) artifact else names(prompts_nested[[a]][[c]][[s]][[asmt]])
+          
+          for (art in artifacts) {
+            cat("Processing:", a, c, s, asmt, art, "\n")
+            assignment_results <- run_chatgpt_on_assignment(
+              prompts_nested, 
+              area = a, 
+              course = c, 
+              semester = s, 
+              assignment = asmt, 
+              artifact = art, 
+              api_key = api_key, 
+              model = model,
+              test = test  # 🔁 pass through the test flag
+            )
+            
+            all_results <- dplyr::bind_rows(all_results, assignment_results)
+          }
+        }
+      }
+    }
+  }
+  
+  return(all_results)
+}
+
+```
+
+Step 6: Store and Organize API Responses fake
+```{r}
+response_df <- run_chatgpt_on_assignment(
+  prompts_nested,
+  area = "Intercultural and Global Inquiry",
+  course = "82-283",
+  semester = "Fall 2021",
+  assignment = "Assignment 1",
+  artifact = "82283_1_F21_DC240141.pdf",
+  api_key = "sk-placeholder", 
+  test = FALSE
+)
+
+response_df <- run_chatgpt_on_assignment(
+  prompts_nested,
+  area = "Intercultural and Global Inquiry",
+  course = "82-283",
+  semester = "Fall 2021",
+  assignment = "Assignment 1",
+  artifact = "82283_1_F21_DC240141.pdf",
+  api_key = "sk-placeholder", 
+  test = FALSE
+)
+response_df
+```
+
+```{r}
+all_responses_df <- run_all_assignments(prompts_nested, 
+                                        api_key = Sys.getenv("OPENAI_API_KEY"),
+                                        test = FALSE)
+# View as a table
+```
+
+
+```{r}
+api_key<-"sk-z7ve64k7RW-LIYldyXKnVA"
+
+get_available_models <- function(api_key) {
+  base_url <- "https://cmu-aiinfra.litellm-prod.ai/v1/models"
+  
+  headers <- add_headers(
+    Authorization = paste("Bearer", api_key)
+  )
+  
+  response <- GET(url = base_url, headers)
+  
+  if (http_error(response)) {
+    cat("❌ Failed to retrieve models:", status_code(response), "\n")
+    print(content(response, "text", encoding = "UTF-8"))
+    return(NULL)
+  }
+  
+  result <- content(response, "parsed", simplifyVector = TRUE)
+  
+  # Print the raw structure
+  cat("Raw response:\n")
+  print(result)
+  
+  # Extract model IDs from data frame directly
+  if (!is.null(result$data) && is.data.frame(result$data)) {
+    model_ids <- result$data$id
+    cat("✅ Available models for your key:\n")
+    print(model_ids)
+    return(model_ids)
+  } else {
+    cat("⚠️ Unexpected structure in result$data. Returning full result:\n")
+    return(result)
+  }
+}
+
+# Example usage
+
+available_models <- get_available_models(api_key)
+
+```
+
+```{r}
+
+library(httr)
+library(jsonlite)
+
+ask_litellm <- function(api_key, prompt, model = "gpt-4o-mini-2024-07-18") {
+  base_url <- "https://cmu-aiinfra.litellm-prod.ai/v1"  # <-- BASE is different
+  endpoint <- paste0(base_url, "/chat/completions")
+  
+  headers <- add_headers(
+    Authorization = paste("Bearer", api_key),
+    `Content-Type` = "application/json"
+  )
+  
+  body <- list(
+    model = model,
+    messages = list(
+      list(role = "user", content = prompt)
+    )
+  )
+  
+  response <- POST(
+    url = endpoint,
+    headers,
+    body = toJSON(body, auto_unbox = TRUE)
+  )
+  
+  if (http_error(response)) {
+  cat("API request failed:", status_code(response), "\n")
+  print(content(response, "text", encoding = "UTF-8"))  # <--- Add this
+  return(NULL)
+}
+  
+  content(response, "parsed", simplifyVector = TRUE)
+}
+
+# --- Then call it:
+
+
+prompt <- "What is the capital of France?"
+result <- ask_litellm(api_key, prompt)
+
+result$choices$message$content
+```
+run the test
+```{r}
+
+chatgpt_api_call <- function(prompt, api_key, model = "gpt-4o-mini-2024-07-18") {
+  result <- ask_litellm(api_key, prompt, model)
+  if (!is.null(result$choices$message$content[[1]])) {
+    return(result$choices$message$content[[1]])
+  } else {
+    return("⚠️ No response from model.")
+  }
+}
+
+prompt <- "What is the capital of France?"
+chatgpt_api_call(prompt, api_key)
+```
+
+
+
+```{r}
+response_df_test <- run_chatgpt_on_assignment(
+  prompts_nested,
+  area = "Intercultural and Global Inquiry",
+  course = "82-283",
+  semester = "Fall 2021",
+  assignment = "Assignment 1",
+  artifact = "82283_1_F21_DC240141.pdf",
+  api_key = api_key, 
+  model = "gpt-4o-mini-2024-07-18",
+  test = FALSE
+)
+
+response_df_test
+response_df_test$response
+View(response_df_test)
+```
+
+
+Step 7: Post-Processing & Quality Control
+```{r}
+response_df_test_new <- run_chatgpt_on_assignment_descriptive_then_score(
+  prompts_nested,
+  area = "Intercultural and Global Inquiry",
+  course = "82-283",
+  semester = "Fall 2021",
+  assignment = "Assignment 1",
+  artifact = "82283_1_F21_DC240141.pdf",
+  api_key = api_key, 
+  model = "gpt-4o-mini-2024-07-18",
+  test = FALSE
+)
+
+response_df_test_new 
+#prompts_nested$`Intercultural and Global Inquiry`$`82-283`$`Fall 2021`$`Assignment 1`
+
+response_df_test_new_2 <- run_chatgpt_on_assignment_descriptive_then_score(
+  prompts_nested,
+  area = "Intercultural and Global Inquiry",
+  course = "82-283",
+  semester = "Fall 2021",
+  assignment = "Assignment 1",
+  artifact = "82283_1_F21_DC783135.pdf",
+  api_key = api_key, 
+  model = "gpt-4o-mini-2024-07-18",
+  test = FALSE
+)
+
+response_df_test_new_2$response
+
+response_df_test_new_3 <- run_chatgpt_on_assignment_descriptive_then_score(
+  prompts_nested,
+  area = "Intercultural and Global Inquiry",
+  course = "82-283",
+  semester = "Fall 2021",
+  assignment = "Assignment 1",
+  artifact = "82283_1_F21_DC260895.pdf",
+  api_key = api_key, 
+  model = "gpt-4o-mini-2024-07-18",
+  test = FALSE
+)
+
+response_df_test_new_3$response
+response_df_test_new_3
+response_df_test_new$response
+```
+
+Step 8: Deploy & Automate the Workflow
+```{r}
+# Step 1: Get 2 random artifact IDs
+artifact_sample <- IGI_full %>%
+  distinct(areas, course, semesters, assignments, artifact) %>%
+  slice_sample(n = 2)
+
+# Step 2: Keep all rubric rows for those 2 artifacts
+igi_sample_full <- IGI_full %>%
+  semi_join(artifact_sample, by = c("areas", "course", "semesters", "assignments", "artifact"))
+
+# Step 3: Run GPT on each artifact + rubric outcome pair
+igi_scores_sample <- pmap_dfr(
+  igi_sample_full %>%
+    distinct(areas, course, semesters, assignments, artifact, learning_outcome_numerated, Rubric_Row_Description),
+  function(areas, course, semesters, assignments, artifact, learning_outcome_numerated, Rubric_Row_Description) {
+    results <- run_chatgpt_on_assignment_descriptive_then_score(
+      prompts_nested,
+      area = areas,
+      course = course,
+      semester = semesters,
+      assignment = assignments,
+      artifact = artifact,
+      api_key = api_key,
+      model = "gpt-4o-mini-2024-07-18",
+      test = FALSE
+    )
+    
+    # Attach learning outcome info
+    results$learning_outcome_numerated <- learning_outcome_numerated
+    results$Rubric_Row_Description <- Rubric_Row_Description
+    
+    return(results)
+  }
+)
+
+View(igi_scores_sample)
+
+write.csv(igi_scores_sample, "sample_view_igi_scores.csv", row.names = FALSE)
+igi_scores_all <- pmap_dfr(
+  IGI_full %>%
+    distinct(areas, course, semesters, assignments, artifact, learning_outcome_numerated, Rubric_Row_Description),
+  function(areas, course, semesters, assignments, artifact, learning_outcome_numerated, Rubric_Row_Description) {
+    results <- run_chatgpt_on_assignment_descriptive_then_score(
+      prompts_nested,
+      area = areas,
+      course = course,
+      semester = semesters,
+      assignment = assignments,
+      artifact = artifact,
+      api_key = api_key,
+      model = "gpt-4o-mini-2024-07-18",
+      test = FALSE
+    )
+    
+    results$learning_outcome_numerated <- learning_outcome_numerated
+    results$Rubric_Row_Description <- Rubric_Row_Description
+    
+    return(results)
+  }
+)
+
+View(igi_scores_all)
+
+```
+
+
+
+
+
+

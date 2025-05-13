@@ -1,0 +1,271 @@
+---
+title: "reliability"
+author: "Adam A. Bramlett"
+date: "2024-12-04"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+#install.packages("irr")
+library(irr)
+```
+
+```{r}
+library(googlesheets4)
+library(conflicted)
+library(ltm)
+conflict_prefer("select", "dplyr")
+conflict_prefer("filter", "dplyr")
+```
+
+```{r}
+gs4_auth()
+sheet_url <- "https://docs.google.com/spreadsheets/d/1qvX3LVCaC6oeNom2HwdeitoHpk0CG5EP4ZLBEuXEzLI/edit?gid=0#gid=0"
+
+data <- read_sheet(sheet_url)
+```
+
+```{r}
+colnames(data)
+
+data_c<-data%>%
+  filter(!is.na(rater))%>%
+  dplyr::select("rater","artifact","rubric","learning outcome",
+         "sub learning outcome","rating","difference")%>%
+  mutate(rating = ifelse(rating=="no answer",-1,rating))%>%
+  mutate(rating = ifelse(rating=="NULL",-1,rating))%>%
+  mutate("learning_outcome"=`learning outcome`,
+         "sub_learning_outcome"=`sub learning outcome`,
+         rating=as.numeric(rating))%>%
+  dplyr::select(-c("learning outcome","sub learning outcome","difference"))
+
+data_c%>%ggplot(aes(x=factor(sub_learning_outcome),y=rating,color=rater))+
+  geom_boxplot()+
+  geom_jitter()+
+  theme_minimal()+
+  facet_grid(.~learning_outcome)
+```
+
+
+```{r}
+View(data_wider)
+data_wider <- data_c %>%
+  mutate(rating = as.numeric(rating)) %>% 
+  mutate(learning_outcome = as.factor(learning_outcome),
+         sub_learning_outcome = as.factor(sub_learning_outcome)) %>% 
+  group_by(artifact, rubric, learning_outcome, sub_learning_outcome) %>%
+  pivot_wider(
+    names_from = rater,           
+    values_from = rating,              
+    names_prefix = "rating_"           
+  )%>% 
+  ungroup()%>%
+  filter(if_all(starts_with("rating_"), ~ . %in% c("-1", "0", "1", "2", "3", "4", "5"))) %>%
+  mutate(across(starts_with("rating_"), as.numeric))
+
+View(data_wider)
+# Load the required library
+
+library(ltm)
+# Calculate Cronbach's alpha
+alpha_value <- data_wider %>%
+  ungroup() %>%                      
+  na.omit() %>%                       
+  dplyr::select(starts_with("rating_")) %>%     
+  ltm::cronbach.alpha()                
+
+# View the result
+alpha_value
+
+```
+
+```{r}
+
+# Calculate Cronbach's alpha by learning_outcome
+alpha_results <- data_wider %>%
+  mutate(row_number = row_number())%>%
+  na.omit() %>% 
+  group_by(learning_outcome) %>%         
+  summarise(
+    alpha = ltm::cronbach.alpha(             
+      dplyr::select(cur_data(), starts_with("rating_")) %>%
+        as.data.frame()                           
+    )$alpha                                        
+  )
+
+# View the results
+alpha_results
+```
+
+```{r}
+# Calculate Cronbach's alpha by learning_outcome
+alpha_results <- data_wider %>%
+  na.omit() %>% 
+    filter(if_all(starts_with("rating_"), ~ . != -1)) %>% 
+  mutate(learn_out=paste(learning_outcome,sub_learning_outcome,sep="."))%>%
+  group_by(learn_out) %>%        
+  summarise(
+    alpha = ltm::cronbach.alpha(                
+      dplyr::select(cur_data(), starts_with("rating_")) %>%
+        as.data.frame())$alpha)
+
+# results
+alpha_results
+```
+
+```{r}
+# Calculate ICC for each learning_outcome
+icc_results <- data_wider %>%
+  group_by(learning_outcome) %>%
+  summarise(
+    icc = irr::icc(
+      dplyr::select(cur_data(), starts_with("rating_")), 
+      model = "twoway",                   
+      type = "agreement",                  
+      unit = "single"     
+    )$value                                          
+  )
+
+# results
+icc_results
+```
+
+```{r}
+library(slider)
+
+data_wider_c<- data_wider %>%
+  filter(if_all(starts_with("rating_"), ~ !is.na(.)))
+
+cumulative_alpha <- lapply(10:nrow(data_wider_c), function(end_row) {
+  subset_data <- data_wider_c[1:end_row, ]
+  ratings <- dplyr::select(subset_data, starts_with("rating_")) %>% as.data.frame()
+  
+  # Check if sufficient data is available for alpha calculation
+  if (nrow(ratings) >= 2 && ncol(ratings) >= 2) {
+    alpha <- ltm::cronbach.alpha(ratings)$alpha} 
+  else{alpha <- NA}
+  
+  
+  tibble(row_number = end_row, alpha = alpha)
+}) %>%bind_rows() 
+
+# cumulative alpha results
+cumulative_alpha
+
+
+cumulative_alpha%>%ggplot(aes(x=row_number,y=alpha))+
+  geom_point()+
+  labs()
+```
+```{r}
+# Filter out rows with NA in rating columns
+data_wider_c <- data_wider %>%
+  filter(if_all(starts_with("rating_"), ~ !is.na(.)))
+
+# Split the dataframe by `learning_outcome`
+split_data <- split(data_wider_c, data_wider_c$learning_outcome)
+
+# Calculate cumulative alpha for each subset and combine
+cumulative_alpha_by_outcome <- lapply(split_data, function(subset_data) {
+  learning_outcome_label <- unique(subset_data$learning_outcome) # Get learning outcome
+  
+  # Calculate cumulative alpha for this subset
+  cumulative_alpha <- lapply(10:nrow(subset_data), function(end_row) {
+    subset_data_rows <- subset_data[1:end_row, ]
+    ratings <- dplyr::select(subset_data_rows, starts_with("rating_")) %>% as.data.frame()
+    
+    # Check if sufficient data is available for alpha calculation
+    if (nrow(ratings) >= 2 && ncol(ratings) >= 2) {
+      alpha <- ltm::cronbach.alpha(ratings)$alpha
+    } else {
+      alpha <- NA
+    }
+    
+    # Return tibble with alpha, row number, and learning outcome
+    tibble(row_number = end_row, alpha = alpha, learning_outcome = learning_outcome_label)
+  }) %>% bind_rows()
+  
+  return(cumulative_alpha)
+}) %>% bind_rows() # Combine results from all subsets
+
+# View the cumulative alpha results
+cumulative_alpha_by_outcome 
+
+#  Plot the results
+cumulative_alpha_by_outcome %>%
+  ggplot(aes(x = row_number, y = alpha, color = learning_outcome)) +
+  geom_point() +
+  labs(
+    title = "Cumulative Cronbach's Alpha by Learning Outcome",
+    x = "Row Number",
+    y = "Cronbach's Alpha",
+    color = "Learning Outcome"
+  ) +
+  theme_minimal()+
+  facet_wrap(learning_outcome ~ ., scales = "free")
+```
+
+```{r}
+
+# Filter out rows with NA in rating columns
+data_wider_c <- data_wider %>%
+  filter(if_all(starts_with("rating_"), ~ !is.na(.))) %>%
+  na.omit()
+
+# Split the dataframe by learning_outcome and sub_learning_outcome
+split_data <- split(data_wider_c, interaction(data_wider_c$learning_outcome, data_wider_c$sub_learning_outcome))
+
+# Calculate cumulative alpha for each subset and combine
+cumulative_alpha_by_outcome <- lapply(split_data, function(subset_data) {
+  learning_outcome_label <- unique(subset_data$learning_outcome)
+  sub_learning_outcome_label <- unique(subset_data$sub_learning_outcome)
+  
+  # Calculate cumulative alpha for this subset
+  cumulative_alpha <- lapply(10:nrow(subset_data), function(end_row) {
+    subset_data_rows <- subset_data[1:end_row, ]
+    ratings <- dplyr::select(subset_data_rows, starts_with("rating_")) %>% as.data.frame()
+    
+    # Check for sufficient data and no missing values
+    if (nrow(ratings) >= 2 && ncol(ratings) >= 2 && all(complete.cases(ratings))) {
+      alpha <- ltm::cronbach.alpha(ratings)$alpha
+    } else {
+      alpha <- NA
+    }
+    
+    # Return tibble with alpha, row number, and learning outcome
+    tibble(
+      row_number = end_row,
+      alpha = alpha,
+      learning_outcome = learning_outcome_label,
+      sub_learning_outcome = sub_learning_outcome_label
+    )
+  }) %>% bind_rows()
+  
+  return(cumulative_alpha)
+}) %>% bind_rows() # Combine results from all subsets
+
+#View the cumulative alpha results
+View(cumulative_alpha_by_outcome)
+
+#Plot the results
+cumulative_alpha_by_outcome %>%
+  ggplot(aes(x = row_number, y = alpha, color = factor(learning_outcome))) +
+  geom_point() +
+  labs(
+    title = "Cumulative Cronbach's Alpha by Learning and Sub-Learning Outcomes",
+    x = "Row Number",
+    y = "Cronbach's Alpha",
+    color = "Sub-Learning Outcome"
+  ) +
+  facet_grid(sub_learning_outcome ~ learning_outcome, scales = "free")+
+  theme_minimal()
+
+
+```
+
