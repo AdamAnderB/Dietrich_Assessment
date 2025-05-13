@@ -11,9 +11,10 @@ This project provides a scalable and transparent infrastructure for educational 
 ### 🧩 `survey revised/app.R`
 - **Dynamic Scoring App (R + Shiny)**  
   A secure, user-friendly interface for raters to score student work using dropdown menus, embedded rubrics, and real-time validation. Built for speed, consistency, and privacy-compliance.
-
+  ---
 *Before (left) and after (right) workflow shinny app build* 
   <img src="figures/rating_app.png" alt="Shiny App Interface solution" width="450">
+  ---
 *Example of workflow for user* 
   <img src="figures/rubric_scoring.png" alt="Shiny App Interface" width="450">
 
