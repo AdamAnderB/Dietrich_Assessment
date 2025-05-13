@@ -12,7 +12,8 @@ This project provides a scalable and transparent infrastructure for educational 
 - **Dynamic Scoring App (R + Shiny)**  
   A secure, user-friendly interface for raters to score student work using dropdown menus, embedded rubrics, and real-time validation. Built for speed, consistency, and privacy-compliance.
 
-  <img src="figures/scoring_interface.png" alt="Shiny App Interface" width="450">
+  <img src="figures/rating_app.png" alt="Shiny App Interface solution" width="450">
+  <img src="figures/rubric_scoring.png" alt="Shiny App Interface" width="450">
 
 ---
 
@@ -20,7 +21,7 @@ This project provides a scalable and transparent infrastructure for educational 
 - **Reliability Analysis Script (R Markdown)**  
   Quantifies inter-rater agreement using metrics like exact match, one-off tolerance, and Cohen’s Kappa. Designed to compare both human-human and AI-human scores across multiple rubric components.
 
-  <img src="figures/reliability_plot.png" alt="Reliability Output" width="400">
+  <img src="figures/overal_reliability.png" alt="Reliability Output" width="400">
 
 ---
 
@@ -28,7 +29,7 @@ This project provides a scalable and transparent infrastructure for educational 
 - **AI-Assisted Artifact Scoring Pipeline**  
   An end-to-end system using GPT-4.0 mini (via CMU’s LiteLLM) to score artifacts with rubric-aligned prompts. Includes preprocessing, prompt engineering, and structured output for downstream analysis.
 
-  <img src="figures/llm_pipeline.png" alt="AI Scoring Workflow" width="500">
+  <img src="figures/AI vs AI and Human vs AI Agreement by Rubric Component" alt="AI Scoring Workflow" width="500">
 
 ---
 
